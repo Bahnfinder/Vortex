@@ -21,6 +21,7 @@ public struct TextFireworksView: View {
     @State private var textSystem: VortexSystem
     @State private var hasTriggered = false
     @State private var flashOpacity = 0.0 // Blitz-Effekt
+    @State private var textPoints: [CGPoint] = [] // Vorberechnete Punkte
     
     // Rakete fliegt 1.0s
     let flightDuration = 1.0
@@ -120,13 +121,16 @@ public struct TextFireworksView: View {
             guard !hasTriggered else { return }
             hasTriggered = true
             
+            // Punkte vorberechnen
+            prepareTextPoints()
+            
             rocketSystem.burst()
             
             DispatchQueue.main.asyncAfter(deadline: .now() + flightDuration) {
                 explodeText()
                 // Blitz auslösen
                 withAnimation(.easeOut(duration: 0.1)) {
-                    flashOpacity = 0.3 // Nicht zu hell, nur ein Impuls
+                    flashOpacity = 0.3
                 }
                 withAnimation(.easeOut(duration: 0.4).delay(0.1)) {
                     flashOpacity = 0
@@ -135,13 +139,29 @@ public struct TextFireworksView: View {
         }
     }
     
-    private func explodeText() {
+    private func prepareTextPoints() {
         DispatchQueue.global(qos: .userInitiated).async {
             // Font Size 2.0x für gute Auflösung
             let points = TextRasterizer.rasterize(text: self.text, fontSize: self.fontSize * 2.0)
             
             DispatchQueue.main.async {
-                self.textSystem.spawnAt(points: points)
+                self.textPoints = points
+            }
+        }
+    }
+    
+    private func explodeText() {
+        // Sofort spawnen, da Punkte schon da sein sollten (nach 1s)
+        // Falls Berechnung länger als 1s dauert (unwahrscheinlich), nehmen wir was da ist (leer) oder warten?
+        // Bei leer passiert nichts.
+        if !textPoints.isEmpty {
+            self.textSystem.spawnAt(points: textPoints)
+        } else {
+            // Fallback: Wenn noch nicht fertig, warten wir kurz (Hack)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                if !self.textPoints.isEmpty {
+                    self.textSystem.spawnAt(points: self.textPoints)
+                }
             }
         }
     }
