@@ -61,13 +61,13 @@ public struct TextFireworksView: View {
             tags: ["circle"],
             birthRate: 0,
             lifespan: 3.0,
-            speed: 0, // Text bleibt stehen (oder bewegt sich kaum)
+            speed: 0, // Text bleibt stehen
             colors: .randomRamp(
                 [.white, .yellow, .orange, .clear],
                 [.white, .blue, .purple, .clear],
                 [.white, .pink, .red, .clear]
             ),
-            size: 0.1,
+            size: 0.5, // GRÖSSER! Vorher 0.1 war zu klein (1.6px), jetzt 0.5 (8px bei 16px Base)
             haptics: .burst(type: .heavy, intensity: 1.0)
         )
         _textSystem = State(initialValue: textSys)
@@ -117,13 +117,12 @@ public struct TextFireworksView: View {
         textSystem.haptics = .burst(type: .heavy, intensity: 1.0)
         
         // Text-Punkte berechnen
-        let points = TextRasterizer.rasterize(text: text, fontSize: fontSize, sampleRate: 3)
+        // Wir nutzen eine größere Schriftgröße für mehr Details und skalieren dann runter
+        let points = TextRasterizer.rasterize(text: text, fontSize: fontSize * 2, sampleRate: 5)
+        
+        print("Vortex: Exploding text '\(text)' with \(points.count) particles")
         
         // Partikel manuell hinzufügen
-        // Wir müssen sicherstellen, dass wir auf dem Main Thread sind und direkten Zugriff haben
-        
-        // Da wir keinen direkten Zugriff auf 'particles' von hier haben (internal),
-        // nutzen wir eine Extension-Methode, die wir gleich schreiben.
         textSystem.spawnAt(points: points)
     }
 }
@@ -133,31 +132,40 @@ public struct TextFireworksView: View {
 extension VortexSystem {
     /// Spawnt Partikel an spezifischen Positionen.
     func spawnAt(points: [CGPoint]) {
-        // Haptik manuell triggern da wir burst() umgehen
+        // Sicherstellen, dass das System aktiv ist
+        self.isActive = true
+        self.isEmitting = true // Muss true sein, damit update() funktioniert
+        
+        // Haptik manuell triggern
         if haptics.trigger == .onBurst || haptics.trigger == .onBirth {
             HapticsHelper.trigger(&haptics, at: Date().timeIntervalSince1970)
         }
+        
+        let currentTime = Date().timeIntervalSince1970
         
         for point in points {
             let particle = Particle(
                 tag: tags.randomElement() ?? "circle",
                 position: SIMD2(Double(point.x), Double(point.y)),
-                speed: [Double.random(in: -0.05...0.05), Double.random(in: -0.05...0.05)], // Leichtes Zittern
-                birthTime: Date().timeIntervalSince1970,
+                speed: [Double.random(in: -0.02...0.02), Double.random(in: -0.02...0.02)],
+                birthTime: currentTime,
                 lifespan: lifespan + Double.random(in: -0.5...0.5),
-                initialSize: size,
+                initialSize: size * Double.random(in: 0.8...1.2), // Variation in Größe
                 angularSpeed: [0,0,0],
                 colors: getNewParticleColorRamp()
             )
             particles.append(particle)
         }
+        
+        // Force update damit die neuen Partikel sofort berücksichtigt werden könnten
+        // (VortexView macht das im nächsten Frame sowieso)
     }
 }
 
 struct TextRasterizer {
     static func rasterize(text: String, fontSize: CGFloat, sampleRate: Int = 4) -> [CGPoint] {
         #if canImport(UIKit)
-        let font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .black) // Fetterer Font für mehr Partikel
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         let attributedString = NSAttributedString(string: text, attributes: attributes)
         let size = attributedString.size()
@@ -176,29 +184,31 @@ struct TextRasterizer {
         let height = cgImage.height
         let bytesPerRow = cgImage.bytesPerRow
         
-        // Zentrierung berechnen (0.5, 0.2 als Ziel für Text-Mitte)
-        // Wir wollen den Text im oberen Bereich (Explosion)
+        // Zentrierung
         let targetCenterX = 0.5
         let targetCenterY = 0.3
         
-        // Skalierung: Text soll nicht zu riesig sein relativ zum Screen
-        // Wir nehmen an, dass 'size' Pixel sind. In Vortex sind Koordinaten 0..1
-        // Wir skalieren es runter.
-        let scale = 0.0015 // Experimenteller Wert
+        // Skalierung anpassen damit der Text gut auf den Screen passt (Vortex Koordinaten 0..1)
+        // Wir wollen, dass der Text ca. 80% der Breite einnimmt
+        // width ist Pixelbreite des gerenderten Textes.
+        // Wir mappen width -> 0.8
+        let targetWidth = 0.8
+        let scale = targetWidth / Double(width)
         
         for y in stride(from: 0, to: height, by: sampleRate) {
             for x in stride(from: 0, to: width, by: sampleRate) {
                 let offset = y * bytesPerRow + x * 4
                 let alpha = ptr[offset + 3] // Alpha channel
                 
-                if alpha > 50 { // Wenn Pixel sichtbar ist
-                    // Konvertiere zu Vortex Koordinaten (0..1)
-                    // Zentriere den Text um (0,0) und verschiebe ihn dann
-                    let relX = (Double(x) - Double(width) / 2.0) * scale
-                    let relY = (Double(y) - Double(height) / 2.0) * scale
+                if alpha > 30 { // Niedrigerer Threshold
+                    // Konvertiere zu Vortex Koordinaten
+                    // Zentriere den Text um (0,0) im Pixel-Space
+                    let relX = (Double(x) - Double(width) / 2.0)
+                    let relY = (Double(y) - Double(height) / 2.0)
                     
-                    let finalX = targetCenterX + relX
-                    let finalY = targetCenterY + relY
+                    // Skaliere und verschiebe
+                    let finalX = targetCenterX + (relX * scale)
+                    let finalY = targetCenterY + (relY * scale)
                     
                     points.append(CGPoint(x: finalX, y: finalY))
                 }
@@ -207,7 +217,7 @@ struct TextRasterizer {
         return points
         
         #else
-        return [] // Fallback für Nicht-iOS (könnte man mit NSImage erweitern)
+        return []
         #endif
     }
 }
