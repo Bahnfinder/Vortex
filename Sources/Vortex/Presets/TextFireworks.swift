@@ -30,12 +30,16 @@ extension VortexSystem {
     ) -> [VortexSystem] {
         let characters = Array(text.uppercased())
         var systems: [VortexSystem] = []
+        var letterIndex = 0 // Track actual letter position (excluding spaces)
         
         for (index, char) in characters.enumerated() {
-            // Skip spaces
-            guard char != " " else { continue }
+            // Skip spaces but still account for them in spacing
+            if char == " " {
+                continue
+            }
             
-            let xPosition = startX + (Double(index) * letterSpacing)
+            let xPosition = startX + (Double(letterIndex) * letterSpacing)
+            letterIndex += 1
             
             // Create explosion system for this letter position
             let explosion = VortexSystem(
@@ -61,7 +65,7 @@ extension VortexSystem {
                 size: 0.15,
                 sizeVariation: 0.1,
                 sizeMultiplierAtDeath: 0,
-                startTimeOffset: Double(index) * delayBetweenLetters,
+                startTimeOffset: Double(letterIndex - 1) * delayBetweenLetters,
                 haptics: .burst(type: .heavy, intensity: 0.8)
             )
             
@@ -77,6 +81,7 @@ public struct MultiVortexView<Symbols>: View where Symbols: View {
     let systems: [VortexSystem]
     let symbols: Symbols
     let targetFrameRate: Int
+    @State private var startTime: Date?
     
     public init(
         systems: [VortexSystem],
@@ -93,6 +98,21 @@ public struct MultiVortexView<Symbols>: View where Symbols: View {
             ForEach(systems) { system in
                 VortexView(system, targetFrameRate: targetFrameRate) {
                     symbols
+                }
+            }
+        }
+        .onAppear {
+            startTime = Date()
+            // Trigger bursts for all systems based on their startTimeOffset
+            for system in systems {
+                let delay = system.startTimeOffset
+                if delay > 0 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        system.burst()
+                    }
+                } else {
+                    // Immediate burst
+                    system.burst()
                 }
             }
         }
