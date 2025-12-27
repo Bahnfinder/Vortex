@@ -6,34 +6,37 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 extension VortexSystem {
-    /// Creates a simple text fireworks effect by creating explosion systems for each letter.
-    /// Each letter explodes sequentially with a delay.
-    /// 
-    /// **Note:** This is a simplified version that creates explosions in a line.
-    /// For actual text shape, you'd need to render text and extract pixel positions.
+    /// Creates a text fireworks effect where fireworks shoot up and explode.
+    /// Each letter gets its own firework that launches from the bottom and explodes at the top.
     /// 
     /// - Parameters:
-    ///   - text: The text to display (each character gets an explosion).
-    ///   - letterSpacing: Spacing between letters (in unit space, 0.0-1.0). Defaults to 0.08.
-    ///   - startX: Starting X position for first letter. Defaults to 0.2.
-    ///   - startY: Y position for all letters. Defaults to 0.5.
-    ///   - delayBetweenLetters: Delay between each letter exploding (in seconds). Defaults to 0.15.
+    ///   - text: The text to display.
+    ///   - letterSpacing: Spacing between letters (in unit space). Defaults to 0.08.
+    ///   - startY: Starting Y position for fireworks (bottom). Defaults to 0.9.
+    ///   - explosionY: Y position where explosions happen (top). Defaults to 0.2.
+    ///   - delayBetweenLetters: Delay between each letter launching (in seconds). Defaults to 0.2.
     /// - Returns: An array of VortexSystem instances, one for each character.
     public static func textFireworks(
         _ text: String,
         letterSpacing: Double = 0.08,
-        startX: Double = 0.2,
-        startY: Double = 0.5,
-        delayBetweenLetters: TimeInterval = 0.15
+        startY: Double = 0.9,
+        explosionY: Double = 0.2,
+        delayBetweenLetters: TimeInterval = 0.2
     ) -> [VortexSystem] {
         let characters = Array(text.uppercased())
         var systems: [VortexSystem] = []
-        var letterIndex = 0 // Track actual letter position (excluding spaces)
+        var letterIndex = 0
         
-        for (index, char) in characters.enumerated() {
-            // Skip spaces but still account for them in spacing
+        // Calculate approximate letter positions
+        let totalWidth = Double(characters.filter { $0 != " " }.count) * letterSpacing
+        let startX = (1.0 - totalWidth) / 2.0
+        
+        for char in characters {
             if char == " " {
                 continue
             }
@@ -41,16 +44,26 @@ extension VortexSystem {
             let xPosition = startX + (Double(letterIndex) * letterSpacing)
             letterIndex += 1
             
-            // Create explosion system for this letter position
+            // Create sparkles that follow the launcher (like in .fireworks)
+            let sparkles = VortexSystem(
+                tags: ["circle"],
+                spawnOccasion: .onUpdate,
+                emissionLimit: 1,
+                lifespan: 0.5,
+                speed: 0.05,
+                angleRange: .degrees(90),
+                size: 0.05
+            )
+            
+            // Create the explosion (like in .fireworks)
             let explosion = VortexSystem(
                 tags: ["circle"],
-                position: [xPosition, startY],
-                birthRate: 0, // Don't auto-emit
-                burstCount: 200,
-                burstCountVariation: 50,
-                lifespan: 2.0,
+                spawnOccasion: .onDeath,
+                position: [xPosition, explosionY],
+                birthRate: 100_000,
+                emissionLimit: 500,
                 speed: 0.5,
-                speedVariation: 1.0,
+                speedVariation: 1,
                 angleRange: .degrees(360),
                 acceleration: [0, 1.5],
                 dampingFactor: 4,
@@ -64,12 +77,29 @@ extension VortexSystem {
                 ),
                 size: 0.15,
                 sizeVariation: 0.1,
-                sizeMultiplierAtDeath: 0,
-                startTimeOffset: Double(letterIndex - 1) * delayBetweenLetters,
-                haptics: .burst(type: .heavy, intensity: 0.8)
+                sizeMultiplierAtDeath: 0
             )
             
-            systems.append(explosion)
+            // Create the launching firework (like the main system in .fireworks)
+            let launcher = VortexSystem(
+                tags: ["circle"],
+                secondarySystems: [sparkles, explosion],
+                position: [xPosition, startY],
+                birthRate: 0, // Don't auto-emit
+                emissionLimit: 1,
+                lifespan: 1.0,
+                speed: 1.5,
+                speedVariation: 0.3,
+                angle: .degrees(-90), // Shoot up
+                angleRange: .degrees(10),
+                dampingFactor: 2,
+                size: 0.15,
+                stretchFactor: 4,
+                startTimeOffset: Double(letterIndex - 1) * delayBetweenLetters,
+                haptics: .onDeath(type: .heavy, intensity: 1.0)
+            )
+            
+            systems.append(launcher)
         }
         
         return systems
@@ -81,7 +111,7 @@ public struct MultiVortexView<Symbols>: View where Symbols: View {
     let systems: [VortexSystem]
     let symbols: Symbols
     let targetFrameRate: Int
-    @State private var startTime: Date?
+    @State private var hasTriggered = false
     
     public init(
         systems: [VortexSystem],
@@ -102,8 +132,10 @@ public struct MultiVortexView<Symbols>: View where Symbols: View {
             }
         }
         .onAppear {
-            startTime = Date()
-            // Trigger bursts for all systems based on their startTimeOffset
+            guard !hasTriggered else { return }
+            hasTriggered = true
+            
+            // Trigger launches for all systems based on their startTimeOffset
             for system in systems {
                 let delay = system.startTimeOffset
                 if delay > 0 {
@@ -111,7 +143,6 @@ public struct MultiVortexView<Symbols>: View where Symbols: View {
                         system.burst()
                     }
                 } else {
-                    // Immediate burst
                     system.burst()
                 }
             }
