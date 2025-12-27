@@ -38,11 +38,11 @@ public struct TextFireworksView: View {
             emissionLimit: nil,
             burstCount: 10,
             lifespan: flightDuration,
-            speed: 1.5,
-            speedVariation: 0.1, // Weniger Variation für synchronen Knall
+            speed: 1.6, // Berechnet für Zielhöhe 0.3
+            speedVariation: 0, // Keine Variation -> Exakte Höhe
             angle: .zero,
             angleRange: .degrees(15),
-            dampingFactor: 2,
+            dampingFactor: 2, // Schönes Abbremsen
             colors: .single(.white),
             size: 0.15,
             stretchFactor: 4
