@@ -66,21 +66,22 @@ public struct TextFireworksView: View {
         let textSys = VortexSystem(
             tags: ["circle"],
             birthRate: 0,
-            lifespan: 6.0,
-            speed: 0.05, // Mehr Speed für Impuls
-            speedVariation: 0.05,
-            acceleration: [0, 0.05], // Leichtes Sinken
-            dampingFactor: 3, // Starkes Abbremsen (Freeze-Effekt)
+            lifespan: 8.0,
+            speed: 0.001, // Praktisch keine Bewegung, damit Text scharf bleibt
+            speedVariation: 0,
+            acceleration: [0, 0.002], // Minimale Schwerkraft (fast 0)
+            dampingFactor: 0.5, // Wenig Damping nötig bei kaum Speed
             colors: .randomRamp(
-                [.white, .pink, .pink, .pink, .clear],
-                [.white, .blue, .blue, .blue, .clear],
-                [.white, .green, .green, .green, .clear],
-                [.white, .orange, .orange, .orange, .clear],
-                [.white, .cyan, .cyan, .cyan, .clear],
-                [.white, .yellow, .yellow, .yellow, .clear]
+                // Extrem langes Plateau, erst ganz am Ende Fade-Out
+                [.white, .pink, .pink, .pink, .pink, .pink, .pink, .clear],
+                [.white, .blue, .blue, .blue, .blue, .blue, .blue, .clear],
+                [.white, .green, .green, .green, .green, .green, .green, .clear],
+                [.white, .orange, .orange, .orange, .orange, .orange, .orange, .clear],
+                [.white, .cyan, .cyan, .cyan, .cyan, .cyan, .cyan, .clear],
+                [.white, .yellow, .yellow, .yellow, .yellow, .yellow, .yellow, .clear]
             ),
             size: 0.25,
-            sizeMultiplierAtDeath: 0,
+            sizeMultiplierAtDeath: 0.7, // Partikel bleiben groß! (War 0)
             haptics: .burst(type: .heavy, intensity: 1.0)
         )
         _textSystem = State(initialValue: textSys)
@@ -162,9 +163,9 @@ extension VortexSystem {
             let particle = Particle(
                 tag: tags.randomElement() ?? "circle",
                 position: SIMD2(Double(point.x), Double(point.y)),
-                // Initialer Impuls für Explosions-Look
-                speed: [Double.random(in: -0.05...0.05), Double.random(in: -0.05...0.05)],
-                // Fast gleichzeitiger Start für den "Knall"-Effekt
+                // Minimalstes Zittern für Lebendigkeit, aber Form behalten
+                // Vorher 0.05 -> zu viel Zerstreuung. Jetzt 0.002 -> stabil.
+                speed: [Double.random(in: -0.002...0.002), Double.random(in: -0.002...0.002)],
                 birthTime: currentTime + Double.random(in: 0...0.05),
                 lifespan: lifespan + Double.random(in: -0.5...0.5),
                 initialSize: size * Double.random(in: 0.8...1.2),
