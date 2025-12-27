@@ -20,6 +20,7 @@ public struct TextFireworksView: View {
     @State private var rocketSystem: VortexSystem
     @State private var textSystem: VortexSystem
     @State private var hasTriggered = false
+    @State private var flashOpacity = 0.0 // Blitz-Effekt
     
     // Rakete fliegt 1.0s
     let flightDuration = 1.0
@@ -29,23 +30,22 @@ public struct TextFireworksView: View {
         self.fontSize = fontSize
         
         // 1. Rakete (fliegt hoch)
-        // Orientiert am Original 'Fireworks.swift' Preset
         let rocket = VortexSystem(
             tags: ["circle"],
             position: [0.5, 1.0], 
-            shape: .box(width: 1.0, height: 0), // Breit verteilt
+            shape: .box(width: 1.0, height: 0),
             birthRate: 0,
             emissionLimit: nil,
             burstCount: 10,
             lifespan: flightDuration,
             speed: 1.5,
-            speedVariation: 0.5, // Variation für Natürlichkeit
-            angle: .zero, // Nach oben
-            angleRange: .degrees(15), // Leicht gefächert
-            dampingFactor: 2, // WICHTIG: Bremst die Rakete ab, wie im Original!
-            colors: .single(.white), // Original ist WEISS (nicht bunt)
-            size: 0.15, // Original Größe (war 0.2)
-            stretchFactor: 4 // Original Stretch (war 6)
+            speedVariation: 0.1, // Weniger Variation für synchronen Knall
+            angle: .zero,
+            angleRange: .degrees(15),
+            dampingFactor: 2,
+            colors: .single(.white),
+            size: 0.15,
+            stretchFactor: 4
         )
         
         // Funkel-Schweif (Exakt wie Original Fireworks)
@@ -63,26 +63,24 @@ public struct TextFireworksView: View {
         _rocketSystem = State(initialValue: rocket)
         
         // 2. Text-Explosion
-        // Optimiert für Performance und Lesbarkeit
         let textSys = VortexSystem(
             tags: ["circle"],
             birthRate: 0,
-            lifespan: 8.0, // Sehr lange sichtbar
-            speed: 0.001, // Praktisch keine Bewegung, damit Text scharf bleibt
-            speedVariation: 0,
-            acceleration: [0, 0], // KEINE Schwerkraft, Text soll schweben
-            dampingFactor: 0,
+            lifespan: 6.0,
+            speed: 0.05, // Mehr Speed für Impuls
+            speedVariation: 0.05,
+            acceleration: [0, 0.05], // Leichtes Sinken
+            dampingFactor: 3, // Starkes Abbremsen (Freeze-Effekt)
             colors: .randomRamp(
-                // Lange Plateau-Phasen für volle Sichtbarkeit
-                [.white, .pink, .pink, .pink, .pink, .clear],
-                [.white, .blue, .blue, .blue, .blue, .clear],
-                [.white, .green, .green, .green, .green, .clear],
-                [.white, .orange, .orange, .orange, .orange, .clear],
-                [.white, .cyan, .cyan, .cyan, .cyan, .clear],
-                [.white, .yellow, .yellow, .yellow, .yellow, .clear]
+                [.white, .pink, .pink, .pink, .clear],
+                [.white, .blue, .blue, .blue, .clear],
+                [.white, .green, .green, .green, .clear],
+                [.white, .orange, .orange, .orange, .clear],
+                [.white, .cyan, .cyan, .cyan, .clear],
+                [.white, .yellow, .yellow, .yellow, .clear]
             ),
-            size: 0.25, // Kleiner für mehr Schärfe (war 0.35)
-            sizeMultiplierAtDeath: 0.5,
+            size: 0.25,
+            sizeMultiplierAtDeath: 0,
             haptics: .burst(type: .heavy, intensity: 1.0)
         )
         _textSystem = State(initialValue: textSys)
@@ -109,6 +107,13 @@ public struct TextFireworksView: View {
                     .blur(radius: 1)
                     .blendMode(.plusLighter)
             }
+            
+            // Blitz beim Knall
+            Color.white
+                .opacity(flashOpacity)
+                .blendMode(.plusLighter)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
         .onAppear {
             guard !hasTriggered else { return }
@@ -118,6 +123,13 @@ public struct TextFireworksView: View {
             
             DispatchQueue.main.asyncAfter(deadline: .now() + flightDuration) {
                 explodeText()
+                // Blitz auslösen
+                withAnimation(.easeOut(duration: 0.1)) {
+                    flashOpacity = 0.3 // Nicht zu hell, nur ein Impuls
+                }
+                withAnimation(.easeOut(duration: 0.4).delay(0.1)) {
+                    flashOpacity = 0
+                }
             }
         }
     }
@@ -147,16 +159,14 @@ extension VortexSystem {
         let step = max(1, points.count / maxParticles)
         
         for (i, point) in points.enumerated() where i % step == 0 {
-            // Organisches "Aufblühen": Partikel spawnen über 0.6s verteilt
-            // Das reduziert auch den CPU-Spike beim ersten Frame
-            let spawnDelay = Double.random(in: 0...0.6)
-            
             let particle = Particle(
                 tag: tags.randomElement() ?? "circle",
                 position: SIMD2(Double(point.x), Double(point.y)),
-                speed: [0, 0],
-                birthTime: currentTime + spawnDelay, 
-                lifespan: lifespan + Double.random(in: -1.0...1.0),
+                // Initialer Impuls für Explosions-Look
+                speed: [Double.random(in: -0.05...0.05), Double.random(in: -0.05...0.05)],
+                // Fast gleichzeitiger Start für den "Knall"-Effekt
+                birthTime: currentTime + Double.random(in: 0...0.05),
+                lifespan: lifespan + Double.random(in: -0.5...0.5),
                 initialSize: size * Double.random(in: 0.8...1.2),
                 angularSpeed: [0,0,0],
                 colors: getNewParticleColorRamp()
