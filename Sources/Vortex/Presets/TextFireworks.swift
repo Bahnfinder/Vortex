@@ -36,13 +36,13 @@ public struct TextFireworksView: View {
             shape: .box(width: 1.0, height: 0),
             birthRate: 0,
             emissionLimit: nil,
-            burstCount: 10,
+            burstCount: 15, // Mehr Action
             lifespan: flightDuration,
-            speed: 1.6, // Berechnet für Zielhöhe 0.3
-            speedVariation: 0, // Keine Variation -> Exakte Höhe
+            speed: 1.6,
+            speedVariation: 0.1, // Minimale Variation für Realismus
             angle: .zero,
-            angleRange: .degrees(15),
-            dampingFactor: 2, // Schönes Abbremsen
+            angleRange: .degrees(30), // Breiterer Fächer -> "von überall"
+            dampingFactor: 2,
             colors: .single(.white),
             size: 0.15,
             stretchFactor: 4
