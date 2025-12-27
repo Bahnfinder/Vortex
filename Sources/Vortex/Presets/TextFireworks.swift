@@ -72,9 +72,6 @@ public struct TextFireworksView: View {
     
     public var body: some View {
         ZStack {
-            // Hintergrund schwarz für besseren Kontrast
-            Color.black.ignoresSafeArea()
-            
             // Rakete
             VortexView(rocketSystem) {
                 Circle()
@@ -88,9 +85,9 @@ public struct TextFireworksView: View {
             VortexView(textSystem) {
                 Circle()
                     .fill(.white)
-                    .frame(width: 12) // Etwas kleiner für mehr Detail
+                    .frame(width: 8) // Kleiner für schärferen Text (war 12)
                     .tag("circle")
-                    .blur(radius: 1)
+                    .blur(radius: 0.5) // Weniger Blur (war 1)
                     .blendMode(.plusLighter)
             }
         }
@@ -130,18 +127,20 @@ extension VortexSystem {
         
         let currentTime = Date().timeIntervalSince1970
         
-        // Safety Limit für Partikel
-        let maxParticles = 4000
+        // Weniger Partikel für klareren Text (Max 2500 statt 4000)
+        let maxParticles = 2500
         let step = max(1, points.count / maxParticles)
         
         for (i, point) in points.enumerated() where i % step == 0 {
             let particle = Particle(
                 tag: tags.randomElement() ?? "circle",
                 position: SIMD2(Double(point.x), Double(point.y)),
-                speed: [Double.random(in: -0.01...0.01), Double.random(in: -0.01...0.01)],
-                birthTime: currentTime + Double.random(in: 0...0.1), // Leicht versetztes Erscheinen
+                // Weniger Bewegung damit Text lesbar bleibt
+                speed: [Double.random(in: -0.005...0.005), Double.random(in: -0.005...0.005)],
+                birthTime: currentTime + Double.random(in: 0...0.1),
                 lifespan: lifespan + Double.random(in: -0.5...0.5),
-                initialSize: size * Double.random(in: 0.6...1.4),
+                // Etwas kleiner (0.4 statt 0.6-1.4)
+                initialSize: size * Double.random(in: 0.4...0.8),
                 angularSpeed: [0,0,0],
                 colors: getNewParticleColorRamp()
             )
