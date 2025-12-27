@@ -85,6 +85,10 @@ extension VortexSystem {
             )
 
             if age >= particle.lifespan {
+                // Trigger haptics on particle death
+                if haptics.trigger == .onDeath {
+                    HapticsHelper.trigger(&haptics, at: currentTimeInterval)
+                }
                 spawn(from: particle, event: .onDeath)
                 return nil
             } else {
@@ -158,12 +162,23 @@ extension VortexSystem {
         )
 
         particles.append(newParticle)
+        
+        // Trigger haptics on particle birth
+        if haptics.trigger == .onBirth {
+            HapticsHelper.trigger(&haptics, at: lastUpdate)
+        }
+        
         spawn(from: newParticle, event: .onBirth)
         emissionCount += 1
     }
 
     /// Force a bunch of particles to be created immediately.
     func burst() {
+        // Trigger haptics on burst
+        if haptics.trigger == .onBurst {
+            HapticsHelper.trigger(&haptics, at: lastUpdate)
+        }
+        
         let particlesToCreate = burstCount + burstCountVariation.randomSpread()
 
         for _ in 0..<particlesToCreate {

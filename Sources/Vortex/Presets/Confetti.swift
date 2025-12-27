@@ -23,7 +23,8 @@ extension VortexSystem {
             angularSpeedVariation: [4, 4, 4],
             colors: .random(.white, .red, .green, .blue, .pink, .orange, .cyan),
             size: 0.5,
-            sizeVariation: 0.5
+            sizeVariation: 0.5,
+            haptics: .burst(type: .medium, intensity: 1.0)
         )
     }()
 

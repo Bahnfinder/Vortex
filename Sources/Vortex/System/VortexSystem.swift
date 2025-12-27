@@ -14,7 +14,7 @@ public class VortexSystem: Codable, Identifiable, Equatable, Hashable {
         case tags, secondarySystems, spawnOccasion, position, shape, birthRate, emissionLimit, emissionDuration
         case idleDuration, burstCount, burstCountVariation, lifespan, lifespanVariation, speed, speedVariation, angle
         case angleRange, acceleration, attractionCenter, attractionStrength, dampingFactor, angularSpeed
-        case angularSpeedVariation, colors, size, sizeVariation, sizeMultiplierAtDeath, stretchFactor
+        case angularSpeedVariation, colors, size, sizeVariation, sizeMultiplierAtDeath, stretchFactor, haptics
     }
 
     /// A public identifier  to satisfy Identifiable.
@@ -176,6 +176,9 @@ public class VortexSystem: Codable, Identifiable, Equatable, Hashable {
     /// cause more stretching.
     public var stretchFactor: Double
 
+    /// Configuration for haptic feedback in this particle system.
+    public var haptics: HapticsConfiguration
+
     /// Creates a new particle system. Most values here have sensible defaults, but you do need
     /// to provide a list of tags matching whatever you're using with `VortexView`.
     /// - Parameters:
@@ -237,6 +240,7 @@ public class VortexSystem: Codable, Identifiable, Equatable, Hashable {
     ///     particle will finish at size 0.25. Defaults to 1.
     ///   - stretchFactor: How much to stretch this particle's image based on its movement
     ///     speed. Larger values cause more stretching. Defaults to 1 (no stretch).
+    ///   - haptics: Configuration for haptic feedback. Defaults to `.default` (disabled).
     public init(
         tags: [String],
         secondarySystems: [VortexSystem] = [],
@@ -266,7 +270,8 @@ public class VortexSystem: Codable, Identifiable, Equatable, Hashable {
         sizeVariation: Double = 0,
         sizeMultiplierAtDeath: Double = 1,
         stretchFactor: Double = 1,
-        startTimeOffset: TimeInterval = 0
+        startTimeOffset: TimeInterval = 0,
+        haptics: HapticsConfiguration = .default
     ) {
         self.tags = tags
         self.secondarySystems = secondarySystems
@@ -297,6 +302,7 @@ public class VortexSystem: Codable, Identifiable, Equatable, Hashable {
         self.sizeMultiplierAtDeath = sizeMultiplierAtDeath
         self.stretchFactor = stretchFactor
         self.startTimeOffset = startTimeOffset
+        self.haptics = haptics
 
         lastUpdate -= startTimeOffset
         
@@ -338,7 +344,8 @@ public class VortexSystem: Codable, Identifiable, Equatable, Hashable {
             sizeVariation: sizeVariation,
             sizeMultiplierAtDeath: sizeMultiplierAtDeath,
             stretchFactor: stretchFactor,
-            startTimeOffset: startTimeOffset
+            startTimeOffset: startTimeOffset,
+            haptics: haptics
         )
     }
 }
