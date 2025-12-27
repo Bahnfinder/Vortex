@@ -29,25 +29,36 @@ public struct TextFireworksView: View {
         self.fontSize = fontSize
         
         // 1. Rakete (fliegt hoch)
+        // Orientiert am Original 'Fireworks.swift' Preset
         let rocket = VortexSystem(
             tags: ["circle"],
-            position: [0.5, 1.0], // Start unten Mitte (aber Box Shape verteilt sie)
-            shape: .box(width: 1.0, height: 0), // Volle Breite unten!
+            position: [0.5, 1.0], 
+            shape: .box(width: 1.0, height: 0), // Breit verteilt
             birthRate: 0,
             emissionLimit: nil,
-            burstCount: 12, // Ein ganzer Schwarm Raketen
+            burstCount: 10,
             lifespan: flightDuration,
-            speed: 1.6, // Etwas schneller
-            speedVariation: 0.4, // Unterschiedliche Höhen
+            speed: 1.5,
+            speedVariation: 0.5, // Variation für Natürlichkeit
             angle: .zero, // Nach oben
-            angleRange: .degrees(15), // Leicht fächerförmig
-            colors: .random(.white, .yellow, .orange, .red, .pink),
-            size: 0.2,
-            stretchFactor: 6 // Längere Striche
+            angleRange: .degrees(15), // Leicht gefächert
+            dampingFactor: 2, // WICHTIG: Bremst die Rakete ab, wie im Original!
+            colors: .single(.white), // Original ist WEISS (nicht bunt)
+            size: 0.15, // Original Größe (war 0.2)
+            stretchFactor: 4 // Original Stretch (war 6)
         )
         
-        // Keine Sparkles für sauberen Look (verhindert hängende Artefakte)
-        rocket.secondarySystems = []
+        // Funkel-Schweif (Exakt wie Original Fireworks)
+        let sparkles = VortexSystem(
+            tags: ["circle"],
+            spawnOccasion: .onUpdate,
+            emissionLimit: 1,
+            lifespan: 0.5,
+            speed: 0.05,
+            angleRange: .degrees(90),
+            size: 0.05
+        )
+        rocket.secondarySystems = [sparkles]
         
         _rocketSystem = State(initialValue: rocket)
         
