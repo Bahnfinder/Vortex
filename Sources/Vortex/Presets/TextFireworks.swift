@@ -117,8 +117,9 @@ public struct TextFireworksView: View {
         textSystem.haptics = .burst(type: .heavy, intensity: 1.0)
         
         // Text-Punkte berechnen
-        // Wir nutzen eine größere Schriftgröße für mehr Details und skalieren dann runter
-        let points = TextRasterizer.rasterize(text: text, fontSize: fontSize * 2, sampleRate: 5)
+        // Wir berechnen Punkte basierend auf einer festen Ziel-Breite (z.B. 600px für gute Auflösung)
+        // Sample Rate wird dynamisch angepasst
+        let points = TextRasterizer.rasterize(text: text, fontSize: fontSize * 2)
         
         print("Vortex: Exploding text '\(text)' with \(points.count) particles")
         
@@ -134,79 +135,95 @@ extension VortexSystem {
     func spawnAt(points: [CGPoint]) {
         // Sicherstellen, dass das System aktiv ist
         self.isActive = true
-        self.isEmitting = true // Muss true sein, damit update() funktioniert
-        
-        // Haptik manuell triggern
-        if haptics.trigger == .onBurst || haptics.trigger == .onBirth {
-            HapticsHelper.trigger(&haptics, at: Date().timeIntervalSince1970)
-        }
+        self.isEmitting = true
         
         let currentTime = Date().timeIntervalSince1970
         
-        for point in points {
+        // Begrenze Anzahl der Partikel um Hängen zu vermeiden (Max 3000)
+        let maxParticles = 3000
+        let stride = max(1, points.count / maxParticles)
+        
+        for (index, point) in points.enumerated() where index % stride == 0 {
             let particle = Particle(
                 tag: tags.randomElement() ?? "circle",
                 position: SIMD2(Double(point.x), Double(point.y)),
-                speed: [Double.random(in: -0.02...0.02), Double.random(in: -0.02...0.02)],
+                speed: [Double.random(in: -0.01...0.01), Double.random(in: -0.01...0.01)],
                 birthTime: currentTime,
                 lifespan: lifespan + Double.random(in: -0.5...0.5),
-                initialSize: size * Double.random(in: 0.8...1.2), // Variation in Größe
+                initialSize: size * Double.random(in: 0.5...1.5),
                 angularSpeed: [0,0,0],
                 colors: getNewParticleColorRamp()
             )
             particles.append(particle)
         }
         
-        // Force update damit die neuen Partikel sofort berücksichtigt werden könnten
-        // (VortexView macht das im nächsten Frame sowieso)
+        if haptics.trigger == .onBurst || haptics.trigger == .onBirth {
+            HapticsHelper.trigger(&haptics, at: currentTime)
+        }
     }
 }
 
 struct TextRasterizer {
-    static func rasterize(text: String, fontSize: CGFloat, sampleRate: Int = 4) -> [CGPoint] {
+    static func rasterize(text: String, fontSize: CGFloat) -> [CGPoint] {
         #if canImport(UIKit)
-        let font = UIFont.systemFont(ofSize: fontSize, weight: .black) // Fetterer Font für mehr Partikel
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .black)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.black] // Schwarz auf Transparent
         let attributedString = NSAttributedString(string: text, attributes: attributes)
         let size = attributedString.size()
         
         let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { _ in
-            attributedString.draw(at: .zero)
-        }
+        // pngData() garantiert ein definiertes Format (RGBA), aber ist teuer.
+        // Besser: Wir zeichnen in einen expliziten Bitmap Context.
         
-        guard let cgImage = image.cgImage else { return [] }
-        guard let data = cgImage.dataProvider?.data,
-              let ptr = CFDataGetBytePtr(data) else { return [] }
+        let width = Int(size.width)
+        let height = Int(size.height)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bytesPerPixel = 4
+        let bytesPerRow = bytesPerPixel * width
+        let bitsPerComponent = 8
+        
+        // Raw Pixel Buffer
+        var rawData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+        
+        guard let context = CGContext(
+            data: &rawData,
+            width: width,
+            height: height,
+            bitsPerComponent: bitsPerComponent,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue // RGBA
+        ) else { return [] }
+        
+        // Text in Context zeichnen
+        UIGraphicsPushContext(context)
+        attributedString.draw(at: .zero)
+        UIGraphicsPopContext()
         
         var points: [CGPoint] = []
-        let width = cgImage.width
-        let height = cgImage.height
-        let bytesPerRow = cgImage.bytesPerRow
         
-        // Zentrierung
+        // Zentrierung und Skalierung
         let targetCenterX = 0.5
         let targetCenterY = 0.3
-        
-        // Skalierung anpassen damit der Text gut auf den Screen passt (Vortex Koordinaten 0..1)
-        // Wir wollen, dass der Text ca. 80% der Breite einnimmt
-        // width ist Pixelbreite des gerenderten Textes.
-        // Wir mappen width -> 0.8
-        let targetWidth = 0.8
+        let targetWidth = 0.85
         let scale = targetWidth / Double(width)
         
-        for y in stride(from: 0, to: height, by: sampleRate) {
-            for x in stride(from: 0, to: width, by: sampleRate) {
-                let offset = y * bytesPerRow + x * 4
-                let alpha = ptr[offset + 3] // Alpha channel
+        // Sampling
+        // Ziel: ca. 2000-3000 Punkte insgesamt für gute Performance
+        // Wir schätzen die bedeckte Fläche (ca. 30% bei Text)
+        let estimatedPixels = Double(width * height) * 0.3
+        let targetPoints = 2500.0
+        let sampleStep = max(1, Int(sqrt(estimatedPixels / targetPoints)))
+        
+        for y in stride(from: 0, to: height, by: sampleStep) {
+            for x in stride(from: 0, to: width, by: sampleStep) {
+                let offset = (y * bytesPerRow) + (x * bytesPerPixel)
+                let alpha = rawData[offset + 3] // A ist letztes Byte bei RGBA
                 
-                if alpha > 30 { // Niedrigerer Threshold
-                    // Konvertiere zu Vortex Koordinaten
-                    // Zentriere den Text um (0,0) im Pixel-Space
+                if alpha > 20 { // Wenn Pixel sichtbar
                     let relX = (Double(x) - Double(width) / 2.0)
                     let relY = (Double(y) - Double(height) / 2.0)
                     
-                    // Skaliere und verschiebe
                     let finalX = targetCenterX + (relX * scale)
                     let finalY = targetCenterY + (relY * scale)
                     
