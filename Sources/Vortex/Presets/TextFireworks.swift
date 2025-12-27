@@ -56,15 +56,18 @@ public struct TextFireworksView: View {
         let textSys = VortexSystem(
             tags: ["circle"],
             birthRate: 0,
-            lifespan: 4.0, // Länger sichtbar
-            speed: 0,
+            lifespan: 2.5, // Etwas kürzer
+            speed: 0.1, // Leichtes Bewegen
+            acceleration: [0, 0.8], // Leichtes Fallen (Schwerkraft)
+            dampingFactor: 2, // Abbremsen
             colors: .randomRamp(
-                [.white, .yellow, .orange, .clear],
-                [.white, .blue, .purple, .clear],
-                [.white, .pink, .red, .clear],
-                [.white, .green, .cyan, .clear]
+                [.white, .pink, .pink, .clear],
+                [.white, .blue, .blue, .clear],
+                [.white, .green, .green, .clear],
+                [.white, .orange, .orange, .clear],
+                [.white, .cyan, .cyan, .clear]
             ),
-            size: 0.3,
+            size: 0.2, // Basis-Größe anpassen
             haptics: .burst(type: .heavy, intensity: 1.0)
         )
         _textSystem = State(initialValue: textSys)
@@ -132,16 +135,17 @@ extension VortexSystem {
         let step = max(1, points.count / maxParticles)
         
         for (i, point) in points.enumerated() where i % step == 0 {
+            // Explosions-Effekt: Partikel bewegen sich leicht weg vom Zentrum des Buchstabens?
+            // Nein, wir geben ihnen einfach zufällige, kleine Geschwindigkeit für "Sparkle"
+            
             let particle = Particle(
                 tag: tags.randomElement() ?? "circle",
                 position: SIMD2(Double(point.x), Double(point.y)),
-                // Weniger Bewegung damit Text lesbar bleibt
-                speed: [Double.random(in: -0.005...0.005), Double.random(in: -0.005...0.005)],
+                speed: [Double.random(in: -0.1...0.1), Double.random(in: -0.1...0.1)], // Mehr "Fizzle"
                 birthTime: currentTime + Double.random(in: 0...0.1),
-                lifespan: lifespan + Double.random(in: -0.5...0.5),
-                // Etwas kleiner (0.4 statt 0.6-1.4)
-                initialSize: size * Double.random(in: 0.4...0.8),
-                angularSpeed: [0,0,0],
+                lifespan: lifespan + Double.random(in: -0.2...0.2),
+                initialSize: size * Double.random(in: 0.5...1.0),
+                angularSpeed: [Double.random(in: -2...2), Double.random(in: -2...2), Double.random(in: -2...2)], // Rotation
                 colors: getNewParticleColorRamp()
             )
             particles.append(particle)
@@ -215,8 +219,10 @@ struct TextRasterizer {
                         let relX = (Double(x) - Double(width) / 2.0)
                         let relY = (Double(y) - Double(height) / 2.0)
                         
+                        // Y-Flip: CoreGraphics ist Y-up, Vortex Y-down? Oder Text ist kopfüber?
+                        // Wir flippen Y relativ zum Center
                         let finalX = targetCenterX + (relX * scale)
-                        let finalY = targetCenterY + (relY * scale)
+                        let finalY = targetCenterY - (relY * scale) // FLIPPED
                         
                         points.append(CGPoint(x: finalX, y: finalY))
                     }
