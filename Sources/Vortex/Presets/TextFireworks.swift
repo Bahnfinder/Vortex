@@ -21,6 +21,9 @@ public struct TextFireworksView: View {
     @State private var textSystem: VortexSystem
     @State private var hasTriggered = false
     
+    // Rakete fliegt 1.0s
+    let flightDuration = 1.0
+    
     public init(text: String, fontSize: CGFloat = 40) {
         self.text = text
         self.fontSize = fontSize
@@ -28,47 +31,53 @@ public struct TextFireworksView: View {
         // 1. Rakete (fliegt hoch)
         let rocket = VortexSystem(
             tags: ["circle"],
-            position: [0.5, 1.0], // Startet unten mittig
+            position: [0.5, 1.0], // Start unten
             birthRate: 0,
             emissionLimit: 1,
-            lifespan: 1.2,
-            speed: 1.5, // Schnell nach oben
-            angle: .zero, // 0 Grad = Nach OBEN! (180 war nach unten)
+            lifespan: flightDuration,
+            speed: 1.5,
+            angle: .zero, // Nach oben
             colors: .single(.white),
             size: 0.25,
-            stretchFactor: 4,
-            haptics: .default
+            stretchFactor: 4
         )
         
-        let trail = VortexSystem(
+        // Funkel-Schweif (Dezenter)
+        let sparkles = VortexSystem(
             tags: ["circle"],
             spawnOccasion: .onUpdate,
             emissionLimit: nil,
-            lifespan: 0.3,
-            speed: 0.1,
+            lifespan: 0.3, // Kürzer
+            speed: 0.05,
+            angleRange: .degrees(45), // Schmaler (weniger WLAN-Look)
             colors: .ramp(.white, .yellow, .clear),
-            size: 0.1
+            size: 0.03 // Kleiner
         )
-        rocket.secondarySystems = [trail]
+        rocket.secondarySystems = [sparkles]
         
         _rocketSystem = State(initialValue: rocket)
         
         // 2. Text-Explosion
+        // Optimiert für Performance und Lesbarkeit
         let textSys = VortexSystem(
             tags: ["circle"],
             birthRate: 0,
-            lifespan: 2.5, // Etwas kürzer
-            speed: 0.1, // Leichtes Bewegen
-            acceleration: [0, 0.8], // Leichtes Fallen (Schwerkraft)
-            dampingFactor: 2, // Abbremsen
+            lifespan: 8.0, // Sehr lange sichtbar
+            speed: 0.001, // Praktisch keine Bewegung, damit Text scharf bleibt
+            speedVariation: 0,
+            acceleration: [0, 0], // KEINE Schwerkraft, Text soll schweben
+            dampingFactor: 0,
             colors: .randomRamp(
-                [.white, .pink, .pink, .clear],
-                [.white, .blue, .blue, .clear],
-                [.white, .green, .green, .clear],
-                [.white, .orange, .orange, .clear],
-                [.white, .cyan, .cyan, .clear]
+                // Lange Plateau-Phasen für volle Sichtbarkeit
+                [.white, .pink, .pink, .pink, .pink, .clear],
+                [.white, .blue, .blue, .blue, .blue, .clear],
+                [.white, .green, .green, .green, .green, .clear],
+                [.white, .orange, .orange, .orange, .orange, .clear],
+                [.white, .cyan, .cyan, .cyan, .cyan, .clear],
+                [.white, .yellow, .yellow, .yellow, .yellow, .clear]
             ),
-            size: 0.2, // Basis-Größe anpassen
+            size: 0.25, // Kleiner für mehr Schärfe (war 0.35)
+            sizeMultiplierAtDeath: 0.5,
             haptics: .burst(type: .heavy, intensity: 1.0)
         )
         _textSystem = State(initialValue: textSys)
@@ -83,16 +92,16 @@ public struct TextFireworksView: View {
                     .frame(width: 32)
                     .tag("circle")
                     .blur(radius: 2)
-                    .blendMode(.plusLighter) // Wichtig für Glow
+                    .blendMode(.plusLighter)
             }
             
             // Explosion
             VortexView(textSystem) {
                 Circle()
                     .fill(.white)
-                    .frame(width: 8)
+                    .frame(width: 10)
                     .tag("circle")
-                    .blur(radius: 1) // Mehr Blur für Glow
+                    .blur(radius: 1)
                     .blendMode(.plusLighter)
             }
         }
@@ -100,23 +109,20 @@ public struct TextFireworksView: View {
             guard !hasTriggered else { return }
             hasTriggered = true
             
-            // Sequenz starten
             rocketSystem.burst()
             
-            // Explosion timen
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + flightDuration) {
                 explodeText()
             }
         }
     }
     
     private func explodeText() {
-        // Berechne Punkte im Hintergrund, um UI nicht zu blockieren
         DispatchQueue.global(qos: .userInitiated).async {
-            let points = TextRasterizer.rasterize(text: self.text, fontSize: self.fontSize * 2.5) // Höhere Auflösung
+            // Font Size 2.0x für gute Auflösung
+            let points = TextRasterizer.rasterize(text: self.text, fontSize: self.fontSize * 2.0)
             
             DispatchQueue.main.async {
-                print("Vortex: Spawning \(points.count) particles for text")
                 self.textSystem.spawnAt(points: points)
             }
         }
@@ -131,29 +137,28 @@ extension VortexSystem {
         self.isEmitting = true
         
         let currentTime = Date().timeIntervalSince1970
-        
-        // Weniger Partikel für klareren Text (Max 2500 statt 4000)
-        let maxParticles = 2500
+        // Erhöht für Schärfe (1200 statt 800)
+        let maxParticles = 1200 
         let step = max(1, points.count / maxParticles)
         
         for (i, point) in points.enumerated() where i % step == 0 {
-            // Explosions-Effekt: Partikel bewegen sich leicht weg vom Zentrum des Buchstabens?
-            // Nein, wir geben ihnen einfach zufällige, kleine Geschwindigkeit für "Sparkle"
+            // Organisches "Aufblühen": Partikel spawnen über 0.6s verteilt
+            // Das reduziert auch den CPU-Spike beim ersten Frame
+            let spawnDelay = Double.random(in: 0...0.6)
             
             let particle = Particle(
                 tag: tags.randomElement() ?? "circle",
                 position: SIMD2(Double(point.x), Double(point.y)),
-                speed: [Double.random(in: -0.1...0.1), Double.random(in: -0.1...0.1)], // Mehr "Fizzle"
-                birthTime: currentTime + Double.random(in: 0...0.1),
-                lifespan: lifespan + Double.random(in: -0.2...0.2),
-                initialSize: size * Double.random(in: 0.5...1.0),
-                angularSpeed: [Double.random(in: -2...2), Double.random(in: -2...2), Double.random(in: -2...2)], // Rotation
+                speed: [0, 0],
+                birthTime: currentTime + spawnDelay, 
+                lifespan: lifespan + Double.random(in: -1.0...1.0),
+                initialSize: size * Double.random(in: 0.8...1.2),
+                angularSpeed: [0,0,0],
                 colors: getNewParticleColorRamp()
             )
             particles.append(particle)
         }
         
-        // Haptik
         HapticsHelper.trigger(&haptics, at: currentTime)
     }
 }
@@ -161,76 +166,74 @@ extension VortexSystem {
 struct TextRasterizer {
     static func rasterize(text: String, fontSize: CGFloat) -> [CGPoint] {
         #if canImport(UIKit)
-        let font = UIFont.systemFont(ofSize: fontSize, weight: .black) // Sehr fetter Font wichtig für Partikel
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.white]
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .black)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.white] // Weißer Text
         let attributedString = NSAttributedString(string: text, attributes: attributes)
         let textSize = attributedString.size()
         
         let width = Int(ceil(textSize.width))
         let height = Int(ceil(textSize.height))
         
-        // 1. Grayscale Context erstellen (1 Byte pro Pixel = Robust & Schnell)
+        // RGBA Context (Sicher & Robust)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bytesPerPixel = 4
+        let bytesPerRow = bytesPerPixel * width
+        let bitsPerComponent = 8
+        
+        // Wir lassen CoreGraphics den Speicher verwalten (data: nil)
         guard let context = CGContext(
-            data: nil, // System soll Speicher verwalten
+            data: nil,
             width: width,
             height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: 0, // System soll optimalen Stride wählen
-            space: CGColorSpaceCreateDeviceGray(),
-            bitmapInfo: CGImageAlphaInfo.none.rawValue // Nur Helligkeit (Maske)
+            bitsPerComponent: bitsPerComponent,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return [] }
         
-        // 2. Text weiß auf schwarz zeichnen
-        // Koordinatensystem anpassen (CoreGraphics ist Y-flipped im Vergleich zu UIKit Text)
-        // Aber für Text Extraction ist es egal, solange wir x,y konsistent lesen.
-        // Wir setzen schwarz als Hintergrund
-        context.setFillColor(UIColor.black.cgColor)
-        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        // Hintergrund transparent (Standard bei neuem Context) oder explizit schwarz löschen?
+        // Wir wollen nur den Text (weiß) auf transparentem Hintergrund.
+        context.clear(CGRect(x: 0, y: 0, width: width, height: height))
         
         // Text zeichnen
         UIGraphicsPushContext(context)
-        attributedString.draw(at: .zero) // Zeichnet weiß
+        attributedString.draw(at: .zero)
         UIGraphicsPopContext()
         
-        // 3. Pixel lesen
         guard let data = context.data else { return [] }
-        let bytesPerRow = context.bytesPerRow // Define bytesPerRow before usage
         
         var points: [CGPoint] = []
         
-        // Zentrierung im Ziel-System
+        // Ziel-Position (Oben, wo Rakete explodiert)
         let targetCenterX = 0.5
-        // Ziel Y: Rakete fliegt 1.2 Sekunden mit Speed 1.5. 
-        // Vortex Speed 1 = Screen Height pro Sekunde.
-        // Also fliegt sie 1.8 Screen Heights hoch? Nein, Damping bremst sie.
-        // Bei Fireworks Preset explodiert sie oben.
-        // Wir setzen den Text einfach ins obere Drittel.
         let targetCenterY = 0.25 
         
+        // Skalierung: Text passt in 85% Breite
         let scale = 0.85 / Double(width)
         
+        // Adaptive Sampling
         let textPixels = Double(width * height) * 0.25
-        let targetCount = 2500.0
+        let targetCount = 3000.0
         let sampleStep = max(1, Int(sqrt(textPixels / targetCount)))
         
-        // Use UnsafeBufferPointer for safe iteration without copy
         let buffer = UnsafeBufferPointer(start: data.bindMemory(to: UInt8.self, capacity: height * bytesPerRow), count: height * bytesPerRow)
         
         for y in stride(from: 0, to: height, by: sampleStep) {
             for x in stride(from: 0, to: width, by: sampleStep) {
-                let offset = y * bytesPerRow + x
-                // Check bounds just in case
-                if offset < buffer.count {
-                    let brightness = buffer[offset]
+                let offset = y * bytesPerRow + x * bytesPerPixel
+                
+                // Wir prüfen Alpha (letztes Byte bei RGBA) oder Rot (erstes Byte, da Text weiß ist)
+                // Bei Weiß (255, 255, 255, 255) ist alles > 0.
+                if offset + 3 < buffer.count {
+                    let alpha = buffer[offset + 3]
                     
-                    if brightness > 50 {
+                    if alpha > 50 {
                         let relX = (Double(x) - Double(width) / 2.0)
                         let relY = (Double(y) - Double(height) / 2.0)
                         
-                        // Y-Flip: CoreGraphics ist Y-up, Vortex Y-down? Oder Text ist kopfüber?
-                        // Wir flippen Y relativ zum Center
+                        // Y-Flip für korrekte Ausrichtung
                         let finalX = targetCenterX + (relX * scale)
-                        let finalY = targetCenterY - (relY * scale) // FLIPPED
+                        let finalY = targetCenterY - (relY * scale)
                         
                         points.append(CGPoint(x: finalX, y: finalY))
                     }
