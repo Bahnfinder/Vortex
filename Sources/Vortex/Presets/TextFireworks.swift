@@ -10,8 +10,6 @@ import CoreGraphics
 
 #if canImport(UIKit)
 import UIKit
-#elseif canImport(AppKit)
-import AppKit
 #endif
 
 /// A view that displays a firework which explodes into text.
@@ -27,21 +25,20 @@ public struct TextFireworksView: View {
         self.text = text
         self.fontSize = fontSize
         
-        // 1. System für die Rakete (fliegt hoch)
+        // 1. Rakete (fliegt hoch)
         let rocket = VortexSystem(
             tags: ["circle"],
-            position: [0.5, 1.0], // Startet unten mittig
+            position: [0.5, 1.0],
             birthRate: 0,
             emissionLimit: 1,
             lifespan: 1.2,
-            speed: 1.2, // Schnell nach oben
-            angle: .degrees(180), // Nach oben (0 ist unten in Vortex Koordinaten oft anders, aber wir testen)
+            speed: 1.2,
+            angle: .degrees(180),
             colors: .single(.white),
             size: 0.3,
-            stretchFactor: 4,
-            haptics: .default // Wir machen Haptik manuell
+            stretchFactor: 4
         )
-        // Schweif für die Rakete
+        
         let trail = VortexSystem(
             tags: ["circle"],
             spawnOccasion: .onUpdate,
@@ -55,19 +52,19 @@ public struct TextFireworksView: View {
         
         _rocketSystem = State(initialValue: rocket)
         
-        // 2. System für den Text (explodiert)
-        // Startet leer und wird gefüllt, wenn die Rakete explodiert
+        // 2. Text-Explosion
         let textSys = VortexSystem(
             tags: ["circle"],
             birthRate: 0,
-            lifespan: 3.0,
-            speed: 0, // Text bleibt stehen
+            lifespan: 4.0, // Länger sichtbar
+            speed: 0,
             colors: .randomRamp(
                 [.white, .yellow, .orange, .clear],
                 [.white, .blue, .purple, .clear],
-                [.white, .pink, .red, .clear]
+                [.white, .pink, .red, .clear],
+                [.white, .green, .cyan, .clear]
             ),
-            size: 0.5, // GRÖSSER! Vorher 0.1 war zu klein (1.6px), jetzt 0.5 (8px bei 16px Base)
+            size: 0.3,
             haptics: .burst(type: .heavy, intensity: 1.0)
         )
         _textSystem = State(initialValue: textSys)
@@ -75,7 +72,10 @@ public struct TextFireworksView: View {
     
     public var body: some View {
         ZStack {
-            // Rakete rendern
+            // Hintergrund schwarz für besseren Kontrast
+            Color.black.ignoresSafeArea()
+            
+            // Rakete
             VortexView(rocketSystem) {
                 Circle()
                     .fill(.white)
@@ -84,11 +84,11 @@ public struct TextFireworksView: View {
                     .blur(radius: 2)
             }
             
-            // Text-Explosion rendern
+            // Explosion
             VortexView(textSystem) {
                 Circle()
                     .fill(.white)
-                    .frame(width: 16)
+                    .frame(width: 12) // Etwas kleiner für mehr Detail
                     .tag("circle")
                     .blur(radius: 1)
                     .blendMode(.plusLighter)
@@ -98,141 +98,133 @@ public struct TextFireworksView: View {
             guard !hasTriggered else { return }
             hasTriggered = true
             
-            startSequence()
-        }
-    }
-    
-    private func startSequence() {
-        // 1. Rakete starten
-        rocketSystem.burst()
-        
-        // 2. Warten bis Rakete oben ist, dann Text explodieren lassen
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            explodeText()
+            // Sequenz starten
+            rocketSystem.burst()
+            
+            // Explosion timen
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                explodeText()
+            }
         }
     }
     
     private func explodeText() {
-        // Haptik auslösen
-        textSystem.haptics = .burst(type: .heavy, intensity: 1.0)
-        
-        // Text-Punkte berechnen
-        // Wir berechnen Punkte basierend auf einer festen Ziel-Breite (z.B. 600px für gute Auflösung)
-        // Sample Rate wird dynamisch angepasst
-        let points = TextRasterizer.rasterize(text: text, fontSize: fontSize * 2)
-        
-        print("Vortex: Exploding text '\(text)' with \(points.count) particles")
-        
-        // Partikel manuell hinzufügen
-        textSystem.spawnAt(points: points)
+        // Berechne Punkte im Hintergrund, um UI nicht zu blockieren
+        DispatchQueue.global(qos: .userInitiated).async {
+            let points = TextRasterizer.rasterize(text: self.text, fontSize: self.fontSize * 2.5) // Höhere Auflösung
+            
+            DispatchQueue.main.async {
+                print("Vortex: Spawning \(points.count) particles for text")
+                self.textSystem.spawnAt(points: points)
+            }
+        }
     }
 }
 
 // MARK: - Helper
 
 extension VortexSystem {
-    /// Spawnt Partikel an spezifischen Positionen.
     func spawnAt(points: [CGPoint]) {
-        // Sicherstellen, dass das System aktiv ist
         self.isActive = true
         self.isEmitting = true
         
         let currentTime = Date().timeIntervalSince1970
         
-        // Begrenze Anzahl der Partikel um Hängen zu vermeiden (Max 3000)
-        let maxParticles = 3000
-        let stride = max(1, points.count / maxParticles)
+        // Safety Limit für Partikel
+        let maxParticles = 4000
+        let step = max(1, points.count / maxParticles)
         
-        for (index, point) in points.enumerated() where index % stride == 0 {
+        for (i, point) in points.enumerated() where i % step == 0 {
             let particle = Particle(
                 tag: tags.randomElement() ?? "circle",
                 position: SIMD2(Double(point.x), Double(point.y)),
                 speed: [Double.random(in: -0.01...0.01), Double.random(in: -0.01...0.01)],
-                birthTime: currentTime,
+                birthTime: currentTime + Double.random(in: 0...0.1), // Leicht versetztes Erscheinen
                 lifespan: lifespan + Double.random(in: -0.5...0.5),
-                initialSize: size * Double.random(in: 0.5...1.5),
+                initialSize: size * Double.random(in: 0.6...1.4),
                 angularSpeed: [0,0,0],
                 colors: getNewParticleColorRamp()
             )
             particles.append(particle)
         }
         
-        if haptics.trigger == .onBurst || haptics.trigger == .onBirth {
-            HapticsHelper.trigger(&haptics, at: currentTime)
-        }
+        // Haptik
+        HapticsHelper.trigger(&haptics, at: currentTime)
     }
 }
 
 struct TextRasterizer {
     static func rasterize(text: String, fontSize: CGFloat) -> [CGPoint] {
         #if canImport(UIKit)
-        let font = UIFont.systemFont(ofSize: fontSize, weight: .black)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.black] // Schwarz auf Transparent
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .black) // Sehr fetter Font wichtig für Partikel
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.white]
         let attributedString = NSAttributedString(string: text, attributes: attributes)
-        let size = attributedString.size()
+        let textSize = attributedString.size()
         
-        let renderer = UIGraphicsImageRenderer(size: size)
-        // pngData() garantiert ein definiertes Format (RGBA), aber ist teuer.
-        // Besser: Wir zeichnen in einen expliziten Bitmap Context.
+        let width = Int(ceil(textSize.width))
+        let height = Int(ceil(textSize.height))
         
-        let width = Int(size.width)
-        let height = Int(size.height)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bytesPerPixel = 4
-        let bytesPerRow = bytesPerPixel * width
-        let bitsPerComponent = 8
-        
-        // Raw Pixel Buffer
-        var rawData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
-        
+        // 1. Grayscale Context erstellen (1 Byte pro Pixel = Robust & Schnell)
         guard let context = CGContext(
-            data: &rawData,
+            data: nil, // System soll Speicher verwalten
             width: width,
             height: height,
-            bitsPerComponent: bitsPerComponent,
-            bytesPerRow: bytesPerRow,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue // RGBA
+            bitsPerComponent: 8,
+            bytesPerRow: 0, // System soll optimalen Stride wählen
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGImageAlphaInfo.none.rawValue // Nur Helligkeit (Maske)
         ) else { return [] }
         
-        // Text in Context zeichnen
+        // 2. Text weiß auf schwarz zeichnen
+        // Koordinatensystem anpassen (CoreGraphics ist Y-flipped im Vergleich zu UIKit Text)
+        // Aber für Text Extraction ist es egal, solange wir x,y konsistent lesen.
+        // Wir setzen schwarz als Hintergrund
+        context.setFillColor(UIColor.black.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        
+        // Text zeichnen
         UIGraphicsPushContext(context)
-        attributedString.draw(at: .zero)
+        attributedString.draw(at: .zero) // Zeichnet weiß
         UIGraphicsPopContext()
+        
+        // 3. Pixel lesen
+        guard let data = context.data else { return [] }
         
         var points: [CGPoint] = []
         
-        // Zentrierung und Skalierung
+        // Zentrierung im Ziel-System
         let targetCenterX = 0.5
         let targetCenterY = 0.3
-        let targetWidth = 0.85
-        let scale = targetWidth / Double(width)
+        let scale = 0.85 / Double(width)
         
-        // Sampling
-        // Ziel: ca. 2000-3000 Punkte insgesamt für gute Performance
-        // Wir schätzen die bedeckte Fläche (ca. 30% bei Text)
-        let estimatedPixels = Double(width * height) * 0.3
-        let targetPoints = 2500.0
-        let sampleStep = max(1, Int(sqrt(estimatedPixels / targetPoints)))
+        let textPixels = Double(width * height) * 0.25
+        let targetCount = 2500.0
+        let sampleStep = max(1, Int(sqrt(textPixels / targetCount)))
+        
+        // Use UnsafeBufferPointer for safe iteration without copy
+        let buffer = UnsafeBufferPointer(start: data.bindMemory(to: UInt8.self, capacity: height * bytesPerRow), count: height * bytesPerRow)
         
         for y in stride(from: 0, to: height, by: sampleStep) {
             for x in stride(from: 0, to: width, by: sampleStep) {
-                let offset = (y * bytesPerRow) + (x * bytesPerPixel)
-                let alpha = rawData[offset + 3] // A ist letztes Byte bei RGBA
-                
-                if alpha > 20 { // Wenn Pixel sichtbar
-                    let relX = (Double(x) - Double(width) / 2.0)
-                    let relY = (Double(y) - Double(height) / 2.0)
+                let offset = y * bytesPerRow + x
+                // Check bounds just in case
+                if offset < buffer.count {
+                    let brightness = buffer[offset]
                     
-                    let finalX = targetCenterX + (relX * scale)
-                    let finalY = targetCenterY + (relY * scale)
-                    
-                    points.append(CGPoint(x: finalX, y: finalY))
+                    if brightness > 50 {
+                        let relX = (Double(x) - Double(width) / 2.0)
+                        let relY = (Double(y) - Double(height) / 2.0)
+                        
+                        let finalX = targetCenterX + (relX * scale)
+                        let finalY = targetCenterY + (relY * scale)
+                        
+                        points.append(CGPoint(x: finalX, y: finalY))
+                    }
                 }
             }
         }
-        return points
         
+        return points
         #else
         return []
         #endif
