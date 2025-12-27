@@ -62,7 +62,7 @@ extension VortexSystem {
                 sizeVariation: 0.1,
                 sizeMultiplierAtDeath: 0,
                 startTimeOffset: Double(index) * delayBetweenLetters,
-                haptics: .onBurst(type: .heavy, intensity: 0.8)
+                haptics: .burst(type: .heavy, intensity: 0.8)
             )
             
             systems.append(explosion)
