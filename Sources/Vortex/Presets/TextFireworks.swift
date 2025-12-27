@@ -28,15 +28,16 @@ public struct TextFireworksView: View {
         // 1. Rakete (fliegt hoch)
         let rocket = VortexSystem(
             tags: ["circle"],
-            position: [0.5, 1.0],
+            position: [0.5, 1.0], // Startet unten mittig
             birthRate: 0,
             emissionLimit: 1,
             lifespan: 1.2,
-            speed: 1.2,
-            angle: .degrees(180),
+            speed: 1.5, // Schnell nach oben
+            angle: .zero, // 0 Grad = Nach OBEN! (180 war nach unten)
             colors: .single(.white),
-            size: 0.3,
-            stretchFactor: 4
+            size: 0.25,
+            stretchFactor: 4,
+            haptics: .default
         )
         
         let trail = VortexSystem(
@@ -82,15 +83,16 @@ public struct TextFireworksView: View {
                     .frame(width: 32)
                     .tag("circle")
                     .blur(radius: 2)
+                    .blendMode(.plusLighter) // Wichtig für Glow
             }
             
             // Explosion
             VortexView(textSystem) {
                 Circle()
                     .fill(.white)
-                    .frame(width: 8) // Kleiner für schärferen Text (war 12)
+                    .frame(width: 8)
                     .tag("circle")
-                    .blur(radius: 0.5) // Weniger Blur (war 1)
+                    .blur(radius: 1) // Mehr Blur für Glow
                     .blendMode(.plusLighter)
             }
         }
@@ -198,7 +200,13 @@ struct TextRasterizer {
         
         // Zentrierung im Ziel-System
         let targetCenterX = 0.5
-        let targetCenterY = 0.3
+        // Ziel Y: Rakete fliegt 1.2 Sekunden mit Speed 1.5. 
+        // Vortex Speed 1 = Screen Height pro Sekunde.
+        // Also fliegt sie 1.8 Screen Heights hoch? Nein, Damping bremst sie.
+        // Bei Fireworks Preset explodiert sie oben.
+        // Wir setzen den Text einfach ins obere Drittel.
+        let targetCenterY = 0.25 
+        
         let scale = 0.85 / Double(width)
         
         let textPixels = Double(width * height) * 0.25
