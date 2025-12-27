@@ -31,29 +31,23 @@ public struct TextFireworksView: View {
         // 1. Rakete (fliegt hoch)
         let rocket = VortexSystem(
             tags: ["circle"],
-            position: [0.5, 1.0], // Start unten
+            position: [0.5, 1.0], // Start unten Mitte (aber Box Shape verteilt sie)
+            shape: .box(width: 1.0, height: 0), // Volle Breite unten!
             birthRate: 0,
-            emissionLimit: 1,
+            emissionLimit: nil,
+            burstCount: 12, // Ein ganzer Schwarm Raketen
             lifespan: flightDuration,
-            speed: 1.5,
+            speed: 1.6, // Etwas schneller
+            speedVariation: 0.4, // Unterschiedliche Höhen
             angle: .zero, // Nach oben
-            colors: .single(.white),
-            size: 0.25,
-            stretchFactor: 4
+            angleRange: .degrees(15), // Leicht fächerförmig
+            colors: .random(.white, .yellow, .orange, .red, .pink),
+            size: 0.2,
+            stretchFactor: 6 // Längere Striche
         )
         
-        // Funkel-Schweif (Dezenter)
-        let sparkles = VortexSystem(
-            tags: ["circle"],
-            spawnOccasion: .onUpdate,
-            emissionLimit: nil,
-            lifespan: 0.3, // Kürzer
-            speed: 0.05,
-            angleRange: .degrees(45), // Schmaler (weniger WLAN-Look)
-            colors: .ramp(.white, .yellow, .clear),
-            size: 0.03 // Kleiner
-        )
-        rocket.secondarySystems = [sparkles]
+        // Keine Sparkles für sauberen Look (verhindert hängende Artefakte)
+        rocket.secondarySystems = []
         
         _rocketSystem = State(initialValue: rocket)
         
