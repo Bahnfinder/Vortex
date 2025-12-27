@@ -189,6 +189,7 @@ struct TextRasterizer {
         
         // 3. Pixel lesen
         guard let data = context.data else { return [] }
+        let bytesPerRow = context.bytesPerRow // Define bytesPerRow before usage
         
         var points: [CGPoint] = []
         
