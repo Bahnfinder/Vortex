@@ -8,7 +8,7 @@
 import SwiftUI
 
 /// A proxy value that supports programmatic access to a Vortex particle system, allowing you
-/// to issue a particle burst, adjust attraction, move the system, and more.
+/// to issue a particle burst, adjust attraction, move the system, start, stop, pause, and resume effects.
 public struct VortexProxy {
     /// The particle system this proxy controls.
     public let particleSystem: VortexSystem?
@@ -30,5 +30,28 @@ public struct VortexProxy {
             newPosition.x / particleSystem.lastDrawSize.width,
             newPosition.y / particleSystem.lastDrawSize.height
         ]
+    }
+
+    /// Completely stops the particle system from emitting new particles.
+    /// Existing particles will continue until they reach their lifespan.
+    public func stop() {
+        particleSystem?.isActive = false
+    }
+
+    /// Starts the particle system, allowing it to emit particles again.
+    public func start() {
+        guard let particleSystem else { return }
+        particleSystem.isActive = true
+        particleSystem.isEmitting = true
+    }
+
+    /// Pauses particle emission. Existing particles will continue until they reach their lifespan.
+    public func pause() {
+        particleSystem?.isEmitting = false
+    }
+
+    /// Resumes particle emission after being paused.
+    public func resume() {
+        particleSystem?.isEmitting = true
     }
 }

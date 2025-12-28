@@ -67,13 +67,13 @@ public struct TextFireworksView: View {
         let textSys = VortexSystem(
             tags: ["circle"],
             birthRate: 0,
-            lifespan: 8.0,
+            lifespan: 7.0, // 6 Sekunden sichtbar + 1 Sekunde Fade-Out
             speed: 0.001, // Praktisch keine Bewegung, damit Text scharf bleibt
             speedVariation: 0,
             acceleration: [0, 0.002], // Minimale Schwerkraft (fast 0)
             dampingFactor: 0.5, // Wenig Damping nötig bei kaum Speed
             colors: .randomRamp(
-                // Extrem langes Plateau, erst ganz am Ende Fade-Out
+                // 6 Sekunden volle Farbe, dann 1 Sekunde Fade-Out
                 [.white, .pink, .pink, .pink, .pink, .pink, .pink, .clear],
                 [.white, .blue, .blue, .blue, .blue, .blue, .blue, .clear],
                 [.white, .green, .green, .green, .green, .green, .green, .clear],
