@@ -16,6 +16,7 @@ import UIKit
 public struct TextFireworksView: View {
     let text: String
     let fontSize: CGFloat
+    let textPositionY: Double // Y-Position des Textes (0.0 = oben, 1.0 = unten)
     
     @State private var rocketSystem: VortexSystem
     @State private var textSystem: VortexSystem
@@ -26,9 +27,10 @@ public struct TextFireworksView: View {
     // Rakete fliegt 1.0s
     let flightDuration = 1.0
     
-    public init(text: String, fontSize: CGFloat = 40) {
+    public init(text: String, fontSize: CGFloat = 40, textPositionY: Double = 0.25) {
         self.text = text
         self.fontSize = fontSize
+        self.textPositionY = textPositionY
         
         // 1. Rakete (fliegt hoch)
         let rocket = VortexSystem(
@@ -67,19 +69,19 @@ public struct TextFireworksView: View {
         let textSys = VortexSystem(
             tags: ["circle"],
             birthRate: 0,
-            lifespan: 7.0, // 6 Sekunden sichtbar + 1 Sekunde Fade-Out
+            lifespan: 8.0, // 3 Sekunden voll sichtbar + 5 Sekunden Zerfallen und Runterfallen
             speed: 0.001, // Praktisch keine Bewegung, damit Text scharf bleibt
             speedVariation: 0,
             acceleration: [0, 0.002], // Minimale Schwerkraft (fast 0)
             dampingFactor: 0.5, // Wenig Damping nötig bei kaum Speed
             colors: .randomRamp(
-                // 6 Sekunden volle Farbe, dann 1 Sekunde Fade-Out
-                [.white, .pink, .pink, .pink, .pink, .pink, .pink, .clear],
-                [.white, .blue, .blue, .blue, .blue, .blue, .blue, .clear],
-                [.white, .green, .green, .green, .green, .green, .green, .clear],
-                [.white, .orange, .orange, .orange, .orange, .orange, .orange, .clear],
-                [.white, .cyan, .cyan, .cyan, .cyan, .cyan, .cyan, .clear],
-                [.white, .yellow, .yellow, .yellow, .yellow, .yellow, .yellow, .clear]
+                // 3 Sekunden volle Farbe, dann 5 Sekunden langsames Zerfallen
+                [.white, .pink, .pink, .pink, .pink, .pink.opacity(0.8), .pink.opacity(0.6), .pink.opacity(0.4), .pink.opacity(0.2), .clear],
+                [.white, .blue, .blue, .blue, .blue, .blue.opacity(0.8), .blue.opacity(0.6), .blue.opacity(0.4), .blue.opacity(0.2), .clear],
+                [.white, .green, .green, .green, .green, .green.opacity(0.8), .green.opacity(0.6), .green.opacity(0.4), .green.opacity(0.2), .clear],
+                [.white, .orange, .orange, .orange, .orange, .orange.opacity(0.8), .orange.opacity(0.6), .orange.opacity(0.4), .orange.opacity(0.2), .clear],
+                [.white, .cyan, .cyan, .cyan, .cyan, .cyan.opacity(0.8), .cyan.opacity(0.6), .cyan.opacity(0.4), .cyan.opacity(0.2), .clear],
+                [.white, .yellow, .yellow, .yellow, .yellow, .yellow.opacity(0.8), .yellow.opacity(0.6), .yellow.opacity(0.4), .yellow.opacity(0.2), .clear]
             ),
             size: 0.25,
             sizeMultiplierAtDeath: 0.7, // Partikel bleiben groß! (War 0)
@@ -142,7 +144,7 @@ public struct TextFireworksView: View {
     private func prepareTextPoints() {
         DispatchQueue.global(qos: .userInitiated).async {
             // Font Size 2.0x für gute Auflösung
-            let points = TextRasterizer.rasterize(text: self.text, fontSize: self.fontSize * 2.0)
+            let points = TextRasterizer.rasterize(text: self.text, fontSize: self.fontSize * 2.0, positionY: self.textPositionY)
             
             DispatchQueue.main.async {
                 self.textPoints = points
@@ -183,9 +185,8 @@ extension VortexSystem {
             let particle = Particle(
                 tag: tags.randomElement() ?? "circle",
                 position: SIMD2(Double(point.x), Double(point.y)),
-                // Minimalstes Zittern für Lebendigkeit, aber Form behalten
-                // Vorher 0.05 -> zu viel Zerstreuung. Jetzt 0.002 -> stabil.
-                speed: [Double.random(in: -0.002...0.002), Double.random(in: -0.002...0.002)],
+                // Sehr minimale Geschwindigkeit - Text bleibt 3 Sekunden stabil, dann beginnt Zerfallen
+                speed: [Double.random(in: -0.001...0.001), Double.random(in: -0.001...0.001)],
                 birthTime: currentTime + Double.random(in: 0...0.05),
                 lifespan: lifespan + Double.random(in: -0.5...0.5),
                 initialSize: size * Double.random(in: 0.8...1.2),
@@ -200,7 +201,7 @@ extension VortexSystem {
 }
 
 struct TextRasterizer {
-    static func rasterize(text: String, fontSize: CGFloat) -> [CGPoint] {
+    static func rasterize(text: String, fontSize: CGFloat, positionY: Double = 0.25) -> [CGPoint] {
         #if canImport(UIKit)
         let font = UIFont.systemFont(ofSize: fontSize, weight: .black)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.white] // Weißer Text
@@ -240,9 +241,9 @@ struct TextRasterizer {
         
         var points: [CGPoint] = []
         
-        // Ziel-Position (Oben, wo Rakete explodiert)
+        // Ziel-Position (anpassbar)
         let targetCenterX = 0.5
-        let targetCenterY = 0.25 
+        let targetCenterY = positionY 
         
         // Skalierung: Text passt in 85% Breite
         let scale = 0.85 / Double(width)
