@@ -263,9 +263,19 @@ struct TextRasterizer {
         
         let buffer = UnsafeBufferPointer(start: data.bindMemory(to: UInt8.self, capacity: height * bytesPerRow), count: height * bytesPerRow)
         
+        // Sampling mit leichter Randomisierung, um Streifen zu vermeiden
         for y in stride(from: 0, to: height, by: sampleStep) {
             for x in stride(from: 0, to: width, by: sampleStep) {
-                let offset = y * bytesPerRow + x * bytesPerPixel
+                // Leichte Randomisierung der Sampling-Position (±25% des sampleStep)
+                let jitterRange = Double(sampleStep) * 0.25
+                let jitteredX = x + Int.random(in: -Int(jitterRange)...Int(jitterRange))
+                let jitteredY = y + Int.random(in: -Int(jitterRange)...Int(jitterRange))
+                
+                // Sicherstellen, dass wir innerhalb der Grenzen bleiben
+                let clampedX = max(0, min(jitteredX, width - 1))
+                let clampedY = max(0, min(jitteredY, height - 1))
+                
+                let offset = clampedY * bytesPerRow + clampedX * bytesPerPixel
                 
                 // Wir prüfen Alpha (letztes Byte bei RGBA) oder Rot (erstes Byte, da Text weiß ist)
                 // Bei Weiß (255, 255, 255, 255) ist alles > 0.
@@ -276,9 +286,15 @@ struct TextRasterizer {
                         let relX = (Double(x) - Double(width) / 2.0)
                         let relY = (Double(y) - Double(height) / 2.0)
                         
+                        // Kleine zufällige Variation hinzufügen, um Streifen zu vermeiden
+                        // Die Variation ist proportional zur Skalierung, damit sie bei allen Größen gleich aussieht
+                        let jitterAmount = scale * 0.3 // 30% der Partikelgröße als Variation
+                        let jitterX = Double.random(in: -jitterAmount...jitterAmount)
+                        let jitterY = Double.random(in: -jitterAmount...jitterAmount)
+                        
                         // Y-Flip für korrekte Ausrichtung
-                        let finalX = targetCenterX + (relX * scale)
-                        let finalY = targetCenterY - (relY * scale)
+                        let finalX = targetCenterX + (relX * scale) + jitterX
+                        let finalY = targetCenterY - (relY * scale) + jitterY
                         
                         points.append(CGPoint(x: finalX, y: finalY))
                     }
