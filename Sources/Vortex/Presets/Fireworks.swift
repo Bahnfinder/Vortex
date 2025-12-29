@@ -56,7 +56,8 @@ extension VortexSystem {
             angleRange: .degrees(60),
             dampingFactor: 2,
             size: 0.15,
-            stretchFactor: 4
+            stretchFactor: 4,
+            haptics: .onExplosion(type: .heavy, intensity: 1.0)
         )
 
         return mainSystem

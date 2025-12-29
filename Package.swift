@@ -22,6 +22,9 @@ let package = Package(
             name: "Vortex",
             dependencies: [
                 .product(name: "Haptica", package: "Haptica", condition: .when(platforms: [.iOS]))
+            ],
+            resources: [
+                .process("Resources")
             ]),
         .testTarget(
             name: "VortexTests",
