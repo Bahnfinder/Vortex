@@ -21,6 +21,8 @@ public struct HapticsConfiguration: Codable, Equatable {
         case onDeath
         /// Trigger haptics when a burst is triggered.
         case onBurst
+        /// Trigger haptics when a secondary system is spawned on particle death (explosion).
+        case onExplosion
         /// Never trigger haptics.
         case never
     }
@@ -147,6 +149,11 @@ extension HapticsConfiguration {
     /// Convenience initializer for death-triggered haptics.
     public static func onDeath(type: HapticType = .light, intensity: Double = 0.3) -> HapticsConfiguration {
         HapticsConfiguration(trigger: .onDeath, type: type, intensity: intensity, minimumInterval: 0.05)
+    }
+    
+    /// Convenience initializer for explosion-triggered haptics (when secondary systems spawn on death).
+    public static func onExplosion(type: HapticType = .heavy, intensity: Double = 1.0) -> HapticsConfiguration {
+        HapticsConfiguration(trigger: .onExplosion, type: type, intensity: intensity, minimumInterval: 0.2)
     }
 }
 

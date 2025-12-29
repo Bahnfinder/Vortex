@@ -194,6 +194,11 @@ extension VortexSystem {
             let newSystem = secondarySystem.makeUniqueCopy()
             newSystem.position = particle.position
             activeSecondarySystems.insert(newSystem)
+            
+            // Trigger haptics on explosion (when a secondary system spawns on death)
+            if event == .onDeath && haptics.trigger == .onExplosion {
+                HapticsHelper.trigger(&haptics, at: lastUpdate)
+            }
         }
     }
 

@@ -11,7 +11,8 @@ extension VortexView {
     /// Enables haptic feedback for this particle system with a simple API.
     /// - Parameters:
     ///   - trigger: When haptics should be triggered. Use `.onBurst` for confetti-like effects,
-    ///     `.onDeath` for explosions (like fireworks), or `.onBirth` for continuous effects.
+    ///     `.onExplosion` for explosions (like fireworks - triggers only when secondary systems spawn),
+    ///     `.onDeath` for individual particle deaths, or `.onBirth` for continuous effects.
     ///   - type: The type of haptic feedback. Defaults to `.medium`.
     ///   - intensity: The intensity/strength of the haptic feedback (0.0 to 1.0). Defaults to 1.0.
     /// - Returns: A modified VortexView with haptics enabled.

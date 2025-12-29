@@ -203,6 +203,9 @@ extension VortexSystem {
 struct TextRasterizer {
     static func rasterize(text: String, fontSize: CGFloat, positionY: Double = 0.25) -> [CGPoint] {
         #if canImport(UIKit)
+        // Referenz-fontSize für Skalierung (Standard: 40)
+        let referenceFontSize: CGFloat = 40.0
+        
         let font = UIFont.systemFont(ofSize: fontSize, weight: .black)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.white] // Weißer Text
         let attributedString = NSAttributedString(string: text, attributes: attributes)
@@ -245,8 +248,13 @@ struct TextRasterizer {
         let targetCenterX = 0.5
         let targetCenterY = positionY 
         
-        // Skalierung: Text passt in 85% Breite
-        let scale = 0.85 / Double(width)
+        // Skalierung: Proportional zur fontSize, damit größere fontSize = größerer Text
+        // Bei fontSize 40 sollte Text 85% Breite haben, bei anderen fontSize proportional
+        // Maximale Breite: 95% um Überlauf zu vermeiden
+        let fontSizeRatio = Double(fontSize) / Double(referenceFontSize)
+        let baseWidthAtReference = 0.85 // Bei fontSize 40 ist Text 85% der Breite
+        let targetWidth = min(baseWidthAtReference * fontSizeRatio, 0.95) // Max 95% Breite
+        let scale = targetWidth / Double(width)
         
         // Adaptive Sampling
         let textPixels = Double(width * height) * 0.25
